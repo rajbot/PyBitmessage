@@ -57,13 +57,8 @@
        <enum>QTabWidget::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>8</number>
       </property>
-      <widget class="QWidget" name="broadcaststream">
-       <attribute name="title">
-        <string>Broadcasts</string>
-       </attribute>
-      </widget>
       <widget class="QWidget" name="inbox">
        <attribute name="icon">
         <iconset resource="bitmessage_icons.qrc">
@@ -919,6 +914,40 @@ p, li { white-space: pre-wrap; }
          <string>Processed 0 broadcasts.</string>
         </property>
        </widget>
+      </widget>
+      <widget class="QWidget" name="broadcaststream">
+       <attribute name="title">
+        <string>Broadcasts</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_3">
+        <item>
+         <widget class="QScrollArea" name="boadcastStreamScrollArea">
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <widget class="QWidget" name="broadcastStreamWidgetContents">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>763</width>
+             <height>463</height>
+            </rect>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_4">
+            <property name="geometry" stdset="0">
+             <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>763</width>
+              <height>463</height>
+             </rect>
+            </property>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>

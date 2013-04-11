@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'bitmessageui.ui'
 #
-# Created: Wed Apr 10 23:15:57 2013
+# Created: Thu Apr 11 01:14:40 2013
 #      by: PyQt4 UI code generator 4.9.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -41,9 +41,6 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabPosition(QtGui.QTabWidget.North)
         self.tabWidget.setTabShape(QtGui.QTabWidget.Rounded)
         self.tabWidget.setObjectName(_fromUtf8("tabWidget"))
-        self.broadcaststream = QtGui.QWidget()
-        self.broadcaststream.setObjectName(_fromUtf8("broadcaststream"))
-        self.tabWidget.addTab(self.broadcaststream, _fromUtf8(""))
         self.inbox = QtGui.QWidget()
         self.inbox.setObjectName(_fromUtf8("inbox"))
         self.verticalLayout_2 = QtGui.QVBoxLayout(self.inbox)
@@ -376,6 +373,22 @@ class Ui_MainWindow(object):
         icon9 = QtGui.QIcon()
         icon9.addPixmap(QtGui.QPixmap(_fromUtf8(":/newPrefix/images/networkstatus.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.tabWidget.addTab(self.networkstatus, icon9, _fromUtf8(""))
+        self.broadcaststream = QtGui.QWidget()
+        self.broadcaststream.setObjectName(_fromUtf8("broadcaststream"))
+        self.verticalLayout_3 = QtGui.QVBoxLayout(self.broadcaststream)
+        self.verticalLayout_3.setObjectName(_fromUtf8("verticalLayout_3"))
+        self.boadcastStreamScrollArea = QtGui.QScrollArea(self.broadcaststream)
+        self.boadcastStreamScrollArea.setWidgetResizable(True)
+        self.boadcastStreamScrollArea.setObjectName(_fromUtf8("boadcastStreamScrollArea"))
+        self.broadcastStreamWidgetContents = QtGui.QWidget()
+        self.broadcastStreamWidgetContents.setGeometry(QtCore.QRect(0, 0, 763, 463))
+        self.broadcastStreamWidgetContents.setObjectName(_fromUtf8("broadcastStreamWidgetContents"))
+        self.verticalLayout_4 = QtGui.QVBoxLayout(self.broadcastStreamWidgetContents)
+        self.verticalLayout_4.setProperty("geometry", QtCore.QRect(0, 0, 763, 463))
+        self.verticalLayout_4.setObjectName(_fromUtf8("verticalLayout_4"))
+        self.boadcastStreamScrollArea.setWidget(self.broadcastStreamWidgetContents)
+        self.verticalLayout_3.addWidget(self.boadcastStreamScrollArea)
+        self.tabWidget.addTab(self.broadcaststream, _fromUtf8(""))
         self.gridLayout.addWidget(self.tabWidget, 0, 0, 1, 1)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtGui.QMenuBar(MainWindow)
@@ -419,13 +432,12 @@ class Ui_MainWindow(object):
         self.menubar.addAction(self.menuHelp.menuAction())
 
         self.retranslateUi(MainWindow)
-        self.tabWidget.setCurrentIndex(0)
+        self.tabWidget.setCurrentIndex(8)
         QtCore.QObject.connect(self.radioButtonSpecific, QtCore.SIGNAL(_fromUtf8("toggled(bool)")), self.lineEditTo.setEnabled)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "Bitmessage", None, QtGui.QApplication.UnicodeUTF8))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.broadcaststream), QtGui.QApplication.translate("MainWindow", "Broadcasts", None, QtGui.QApplication.UnicodeUTF8))
         self.tableWidgetInbox.setSortingEnabled(True)
         item = self.tableWidgetInbox.horizontalHeaderItem(0)
         item.setText(QtGui.QApplication.translate("MainWindow", "To", None, QtGui.QApplication.UnicodeUTF8))
@@ -504,6 +516,7 @@ class Ui_MainWindow(object):
         self.labelPubkeyCount.setText(QtGui.QApplication.translate("MainWindow", "Processed 0 public keys.", None, QtGui.QApplication.UnicodeUTF8))
         self.labelBroadcastCount.setText(QtGui.QApplication.translate("MainWindow", "Processed 0 broadcasts.", None, QtGui.QApplication.UnicodeUTF8))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.networkstatus), QtGui.QApplication.translate("MainWindow", "Network Status", None, QtGui.QApplication.UnicodeUTF8))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.broadcaststream), QtGui.QApplication.translate("MainWindow", "Broadcasts", None, QtGui.QApplication.UnicodeUTF8))
         self.menuFile.setTitle(QtGui.QApplication.translate("MainWindow", "File", None, QtGui.QApplication.UnicodeUTF8))
         self.menuSettings.setTitle(QtGui.QApplication.translate("MainWindow", "Settings", None, QtGui.QApplication.UnicodeUTF8))
         self.menuHelp.setTitle(QtGui.QApplication.translate("MainWindow", "Help", None, QtGui.QApplication.UnicodeUTF8))
