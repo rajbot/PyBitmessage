@@ -586,12 +586,22 @@ class receiveDataThread(QThread):
             readPosition += 64
             endOfPubkeyPosition = readPosition
             sendersHash = data[readPosition:readPosition+20]
-            if sendersHash not in broadcastSendersForWhichImWatching:
+
+            #if sendersHash not in broadcastSendersForWhichImWatching:
+            if False: #bitter hack
                 #Display timing data
                 printLock.acquire()
                 print 'Time spent deciding that we are not interested in this broadcast:', time.time()- self.messageProcessingStartTime
+                #bitter hack
+                if messageEncodingType != 0:
+                    print '  broadcast: ', message
+                else:
+                    print '  broadcast msg encoding was 0'
+                print '  senders hash is ', sendersHash.encode('hex')
+                #end bitter hack
                 printLock.release()
                 return
+
             #At this point, this message claims to be from sendersHash and we are interested in it. We still have to hash the public key to make sure it is truly the key that matches the hash, and also check the signiture.
             readPosition += 20
 
@@ -624,15 +634,16 @@ class receiveDataThread(QThread):
 
             #Let's store the public key in case we want to reply to this person.
             #We don't have the correct nonce or time (which would let us send out a pubkey message) so we'll just fill it with 1's. We won't be able to send this pubkey to others (without doing the proof of work ourselves, which this program is programmed to not do.)
-            t = (ripe.digest(),False,'\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF'+'\xFF\xFF\xFF\xFF'+data[beginningOfPubkeyPosition:endOfPubkeyPosition],int(time.time()),'yes')
-            sqlLock.acquire()
-            sqlSubmitQueue.put('''INSERT INTO pubkeys VALUES (?,?,?,?,?)''')
-            sqlSubmitQueue.put(t)
-            sqlReturnQueue.get()
-            sqlSubmitQueue.put('commit')
-            sqlLock.release()
-            workerQueue.put(('newpubkey',(sendersAddressVersion,sendersStream,ripe.digest()))) #This will check to see whether we happen to be awaiting this pubkey in order to send a message. If we are, it will do the POW and send it.
-            
+            if sendersHash in broadcastSendersForWhichImWatching: #bitter hack
+                t = (ripe.digest(),False,'\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF'+'\xFF\xFF\xFF\xFF'+data[beginningOfPubkeyPosition:endOfPubkeyPosition],int(time.time()),'yes')
+                sqlLock.acquire()
+                sqlSubmitQueue.put('''INSERT INTO pubkeys VALUES (?,?,?,?,?)''')
+                sqlSubmitQueue.put(t)
+                sqlReturnQueue.get()
+                sqlSubmitQueue.put('commit')
+                sqlLock.release()
+                workerQueue.put(('newpubkey',(sendersAddressVersion,sendersStream,ripe.digest()))) #This will check to see whether we happen to be awaiting this pubkey in order to send a message. If we are, it will do the POW and send it.
+
             fromAddress = encodeAddress(sendersAddressVersion,sendersStream,ripe.digest())
             printLock.acquire()
             print 'fromAddress:', fromAddress
@@ -655,7 +666,7 @@ class receiveDataThread(QThread):
                 subject = ''
 
             toAddress = '[Broadcast subscribers]'
-            if messageEncodingType <> 0:
+            if (messageEncodingType <> 0) and (sendersHash in broadcastSendersForWhichImWatching): #bitter hack
                 sqlLock.acquire()
                 t = (self.inventoryHash,toAddress,fromAddress,subject,int(time.time()),body,'inbox',messageEncodingType,0)
                 sqlSubmitQueue.put('''INSERT INTO inbox VALUES (?,?,?,?,?,?,?,?,?)''')
@@ -673,6 +684,18 @@ class receiveDataThread(QThread):
                         apiNotifyPath = ''
                     if apiNotifyPath != '':
                         call([apiNotifyPath, "newBroadcast"])
+
+            #bitter hack
+            #store all broadcasts in broadcasts table
+            #broadcasts (msgid blob, fromaddress text, subject text, received text, message text, encodingtype int, UNIQUE(msgid) ON CONFLICT REPLACE);
+            sqlLock.acquire()
+            t = (self.inventoryHash, fromAddress, subject, int(time.time()), body, messageEncodingType)
+            sqlSubmitQueue.put('''INSERT INTO broadcasts VALUES (?,?,?,?,?,?)''')
+            sqlSubmitQueue.put(t)
+            sqlReturnQueue.get()
+            sqlSubmitQueue.put('commit')
+            sqlLock.release()
+            #end bitter hack
 
             #Display timing data
             printLock.acquire()
@@ -741,7 +764,7 @@ class receiveDataThread(QThread):
         printLock.acquire()
         print 'Total message processing time:', time.time()- self.messageProcessingStartTime, 'seconds.'
         printLock.release()
-        
+
 
     #A msg message has a valid time and POW and requires processing. The recmsg function calls this one.
     def processmsg(self,readPosition, encryptedData):
@@ -763,7 +786,7 @@ class receiveDataThread(QThread):
             return
         else:
             printLock.acquire()
-            print 'This was NOT an acknowledgement bound for me.' 
+            print 'This was NOT an acknowledgement bound for me.'
             #print 'ackdataForWhichImWatching', ackdataForWhichImWatching
             printLock.release()
 
@@ -1541,7 +1564,7 @@ class receiveDataThread(QThread):
         if len(data) < 83:
             #This version message is unreasonably short. Forget it.
             return
-        elif not self.verackSent: 
+        elif not self.verackSent:
             self.remoteProtocolVersion, = unpack('>L',data[:4])
             #print 'remoteProtocolVersion', self.remoteProtocolVersion
             self.myExternalIP = socket.inet_ntoa(data[40:44])
@@ -1968,6 +1991,17 @@ class sqlThread(QThread):
                 sys.stderr.write('ERROR trying to create database file (message.dat). Error message: %s\n' % str(err))
                 sys.exit()
 
+        #bitter hack
+        try:
+            self.cur.execute( '''CREATE TABLE broadcasts (msgid blob, fromaddress text, subject text, received text, message text, encodingtype int, UNIQUE(msgid) ON CONFLICT REPLACE)''' )
+        except Exception, err:
+            if str(err) == 'table broadcasts already exists':
+                print 'broadcasts table already exists.'
+            else:
+                sys.stderr.write('ERROR trying to create broadcasts table in messages.dat. Error message: %s\n' % str(err))
+                sys.exit()
+        #end bitter hack
+
         #People running earlier versions of PyBitmessage do not have the usedpersonally field in their pubkeys table. Let's add it.
         if config.getint('bitmessagesettings','settingsversion') == 2:
             item = '''ALTER TABLE pubkeys ADD usedpersonally text DEFAULT 'no' '''
@@ -1996,7 +2030,7 @@ class sqlThread(QThread):
 
             config.set('bitmessagesettings','settingsversion','4')
             with open(appdata + 'keys.dat', 'wb') as configfile:
-                config.write(configfile)             
+                config.write(configfile)
 
         try:
             testpayload = '\x00\x00'
@@ -2027,7 +2061,7 @@ class sqlThread(QThread):
                 self.cur.execute(item, parameters)
                 sqlReturnQueue.put(self.cur.fetchall())
                 #sqlSubmitQueue.task_done()
-            
+
 
 
 '''The singleCleaner class is a timer-driven thread that cleans data structures to free memory, resends messages when a remote node doesn't respond, and sends pong messages to keep connections alive if the network isn't busy.
@@ -2113,7 +2147,7 @@ class singleCleaner(QThread):
                             self.emit(SIGNAL("updateStatusBar(PyQt_PyObject)"),"Doing work necessary to again attempt to deliver a message...")
                 sqlSubmitQueue.put('commit')
                 sqlLock.release()
-            
+
 
 #This thread, of which there is only one, does the heavy lifting: calculating POWs.
 class singleWorker(QThread):
@@ -2650,8 +2684,8 @@ class addressGenerator(QThread):
                 config.set(address,'privEncryptionKey',privEncryptionKeyWIF)
                 with open(appdata + 'keys.dat', 'wb') as configfile:
                     config.write(configfile)
-                
-                #It may be the case that this address is being generated as a result of a call to the API. Let us put the result in the necessary queue. 
+
+                #It may be the case that this address is being generated as a result of a call to the API. Let us put the result in the necessary queue.
                 apiAddressGeneratorReturnQueue.put(address)
 
                 self.emit(SIGNAL("updateStatusBar(PyQt_PyObject)"),'Done generating address. Doing work necessary to broadcast it...')
@@ -2726,7 +2760,7 @@ class addressGenerator(QThread):
                             reloadMyAddressHashes()#This is necessary here (rather than just at the end) because otherwise if the human generates a large number of new addresses and uses one before they are done generating, the program will receive a getpubkey message and will ignore it.
                     except:
                         print address,'already exists. Not adding it again.'
-                #It may be the case that this address is being generated as a result of a call to the API. Let us put the result in the necessary queue. 
+                #It may be the case that this address is being generated as a result of a call to the API. Let us put the result in the necessary queue.
                 apiAddressGeneratorReturnQueue.put(listOfNewAddressesToSendOutThroughTheAPI)
                 self.emit(SIGNAL("updateStatusBar(PyQt_PyObject)"),'Done generating address')
                 reloadMyAddressHashes()
@@ -3012,7 +3046,7 @@ class MySimpleXMLRPCRequestHandler(SimpleXMLRPCRequestHandler):
             sqlReturnQueue.get()
             sqlSubmitQueue.put('commit')
             sqlLock.release()
-            
+
             toLabel = ''
             t = (toAddress,)
             sqlLock.acquire()
@@ -3026,9 +3060,9 @@ class MySimpleXMLRPCRequestHandler(SimpleXMLRPCRequestHandler):
             apiSignalQueue.put(('displayNewSentMessage',(toAddress,toLabel,fromAddress,subject,message,ackdata)))
 
             workerQueue.put(('sendmessage',toAddress))
-            
+
             return ackdata.encode('hex')
-        
+
         elif method == 'sendBroadcast':
             if len(params) == 0:
                 return 'API Error 0000: I need parameters!'
@@ -3079,7 +3113,7 @@ class MySimpleXMLRPCRequestHandler(SimpleXMLRPCRequestHandler):
 
             workerQueue.put(('sendbroadcast',(fromAddress,subject,message)))
 
-            return ackdata.encode('hex')         
+            return ackdata.encode('hex')
 
         else:
             return 'Invalid Method: %s'%method
@@ -3652,6 +3686,9 @@ class MyForm(QtGui.QMainWindow):
             self.ui.radioButtonWhitelist.click()
             self.loadBlackWhiteList()
 
+        #Initialize the Broadcasts viewer
+        self.loadBroadcasts()
+
 
         #Initialize the ackdataForWhichImWatching data structure using data from the sql database.
         sqlSubmitQueue.put('''SELECT ackdata FROM sent where (status='sentmessage' OR status='doingpow')''')
@@ -3991,7 +4028,7 @@ class MyForm(QtGui.QMainWindow):
                         sqlLock.release()
 
 
-                        
+
 
                         """try:
                             fromLabel = config.get(fromAddress, 'label')
@@ -4011,7 +4048,7 @@ class MyForm(QtGui.QMainWindow):
                         if queryreturn <> []:
                             for row in queryreturn:
                                 toLabel, = row
-                        
+
                         self.displayNewSentMessage(toAddress,toLabel,fromAddress, subject, message, ackdata)
                         workerQueue.put(('sendmessage',toAddress))
 
@@ -4273,7 +4310,7 @@ class MyForm(QtGui.QMainWindow):
         newItem.setData(33,int(time.time()))
         newItem.setFont(font)
         self.ui.tableWidgetInbox.setItem(0,3,newItem)
-        
+
         """#If we have received this message from either a broadcast address or from someone in our address book, display as HTML
         if decodeAddress(fromAddress)[3] in broadcastSendersForWhichImWatching or isAddressInMyAddressBook(fromAddress):
             self.ui.textEditInboxMessage.setText(self.ui.tableWidgetInbox.item(0,2).data(Qt.UserRole).toPyObject())
@@ -4372,6 +4409,33 @@ class MyForm(QtGui.QMainWindow):
                 newItem.setTextColor(QtGui.QColor(128,128,128))
             self.ui.tableWidgetBlacklist.setItem(0,1,newItem)
 
+    def loadBroadcasts(self):
+        layout = self.ui.broadcastStreamWidgetContents.layout()
+        sqlSubmitQueue.put('''SELECT fromaddress, subject, received, message FROM broadcasts WHERE subject!='TIMESERVICE' ORDER BY received DESC LIMIT 10''')
+        sqlSubmitQueue.put('')
+        queryreturn = sqlReturnQueue.get()
+        for row in queryreturn:
+            fromaddress, subject, received, message = row
+            if subject == 'TIMESERVICE':
+                continue
+
+            edit = QtGui.QTextEdit()
+            cursor = edit.textCursor()
+            edit.insertHtml('<html><head><title>HTML Generator Sample Page</title></head><body>\n')
+            edit.insertHtml('<b>%s</b><br />' % subject)
+            edit.insertHtml('<b>%s</b><br />' % fromaddress)
+            edit.insertHtml('<p>%s</p>\n</body></html>' % message)
+            edit.moveCursor(QTextCursor.Start)
+            edit.setMinimumHeight(100)
+            layout.addWidget(edit)
+            #print edit.document().documentLayout().documentSize()
+            #print edit.sizeHint()
+            #import pdb
+            #pdb.set_trace()
+
+
+
+
     def click_pushButtonStatusIcon(self):
         print 'click_pushButtonStatusIcon'
         self.iconGlossaryInstance = iconGlossaryDialog(self)
@@ -4447,7 +4511,7 @@ class MyForm(QtGui.QMainWindow):
             if appdata == '' and not self.settingsDialogInstance.ui.checkBoxPortableMode.isChecked(): #If we ARE using portable mode now but the user selected that we shouldn't...
                 appdata = lookupAppdataFolder()
                 if not os.path.exists(appdata):
-                    os.makedirs(appdata)         
+                    os.makedirs(appdata)
                 config.set('bitmessagesettings','movemessagstoappdata','true') #Tells bitmessage to move the messages.dat file to the appdata directory the next time the program starts.
                 #Write the keys.dat file to disk in the new location
                 with open(appdata + 'keys.dat', 'wb') as configfile:
@@ -4707,7 +4771,7 @@ class MyForm(QtGui.QMainWindow):
     #Send item on the Sent tab to trash
     def on_action_SentTrash(self):
         while self.ui.tableWidgetSent.selectedIndexes() != []:
-            currentRow = self.ui.tableWidgetSent.selectedIndexes()[0].row()            
+            currentRow = self.ui.tableWidgetSent.selectedIndexes()[0].row()
             ackdataToTrash = str(self.ui.tableWidgetSent.item(currentRow,3).data(Qt.UserRole).toPyObject())
             t = (ackdataToTrash,)
             sqlLock.acquire()
@@ -4723,7 +4787,7 @@ class MyForm(QtGui.QMainWindow):
             self.ui.tableWidgetSent.selectRow(currentRow)
         else:
             self.ui.tableWidgetSent.selectRow(currentRow-1)
-            
+
     def on_action_SentClipboard(self):
         currentRow = self.ui.tableWidgetSent.currentRow()
         addressAtCurrentRow = str(self.ui.tableWidgetSent.item(currentRow,0).data(Qt.UserRole).toPyObject())
@@ -4960,7 +5024,7 @@ class MyForm(QtGui.QMainWindow):
             sqlReturnQueue.get()
             sqlSubmitQueue.put('commit')
             sqlLock.release()
-        
+
     def tableWidgetSentItemClicked(self):
         currentRow = self.ui.tableWidgetSent.currentRow()
         if currentRow >= 0:
